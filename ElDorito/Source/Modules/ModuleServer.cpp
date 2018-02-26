@@ -1339,6 +1339,10 @@ namespace Modules
 		VarServerAssassinationEnabledClient = AddVariableInt("AssassinationEnabledClient", "assassination_client", "Controls whether assassinations are enabled on the server", eCommandFlagsInternal, 0, AssassinationDisabledChanged);
 		Server::VariableSynchronization::Synchronize(VarServerAssassinationEnabled, VarServerAssassinationEnabledClient);
 
+		VarServerWeaponTimersEnabled = AddVariableInt("WeaponTimersEnabled", "weapon_timers", "Controls whether weapon timers are enabled on the server", eCommandFlagsArchived, 0);
+		VarServerWeaponTimersEnabled->ValueIntMin = 0;
+		VarServerWeaponTimersEnabled->ValueIntMax = 1;
+
 		// TODO: Fine-tune these default values
 		VarFloodFilterEnabled = AddVariableInt("FloodFilterEnabled", "floodfilter", "Controls whether chat flood filtering is enabled", eCommandFlagsArchived, 1);
 		VarFloodMessageScoreShort = AddVariableInt("FloodMessageScoreShort", "floodscoreshort", "Sets the flood filter score for short messages", eCommandFlagsArchived, 2);

@@ -2,6 +2,7 @@ var locked = false;
 var isHost = false;
 var cardOpacity = 0.9;
 var medalsPath = 'medals://';
+let weaponsPath = "dew://assets/weapons/";
 var imageFormat = 'svg';
 var itemNumber = 0;
 var controllerType;
@@ -19,6 +20,10 @@ var volArray = [];
 var scoreboardData = null;
 var multiRound = false;
 var lastRound = true;
+let weaponTimersState = {};
+let timePassed = 0;
+let endOfRoundTime = null;
+let lastRoundNumber = null;
 
 var teamArray = [
     {name: 'red', color: '#620B0B'},
@@ -99,6 +104,17 @@ var weaponDetails = [
     {name:'Tripmine', 'string':'Tripmine'},
     {name:'DMR', 'string':'DMR'}
 ];
+
+var weaponAliases = {
+    'beamRifle': 'csr',
+    'energySword': 'eb',
+    'fuelRod': 'fc',
+    'gravityHammer': 'gh',
+    'rocketLauncher': 'rl',
+    'shotgun': 'sg',
+    'spartanLaser': 'sl',
+    'sniperRifle': 'sr'
+};
 
 var medalDetails = [
     {name:'Unknown1', 'string':'Unknown1', 'desc':'Last Man Standing?'},
@@ -303,9 +319,61 @@ dew.on('controllerinput', function(e){
     }
 });
 
+dew.on('endRoundTime', function(e) {
+    endOfRoundTime = e.data === null ? null : parseInt(e.data)*60;
+});
+
+dew.on('weaponsPlaced', function(e) {
+    weaponTimersState = {};
+
+    const keys = e.data;
+    if (Object.keys(keys).length > 0) {
+        dew.command('Server.WeaponTimersEnabled', {}).then(function(isEnabled) {
+            if (isEnabled === 1) {
+                const checklist = ['fuelRod', 'beamRifle', 'gravityHammer', 'energySword', 'sniperRifle', 'spartanLaser', 'rocketLauncher', 'shotgun'];
+                for(i=0; i<checklist.length; i++) {
+                    const countKey = checklist[i]+'Count';
+                    if (countKey in keys) {
+                        weaponTimersState[checklist[i]] = {respawnDuration: keys[checklist[i]+'Respawn'], currRespawnTimes: Array(keys[countKey]).fill(0), lastMinIndex: null};
+                    }
+                }
+            }
+        });
+    }
+});
+
+dew.on('weaponsTimer', function(e) {
+    timePassed = e.data['timePassed'];
+
+    const weaponNames = e.data['weaponsEquipped'];
+    for (i=0; i<weaponNames.length; i++) {
+        const name = weaponNames[i];
+        const equipTime = timePassed;
+
+        if (name in weaponTimersState) {
+            const weapInfo = weaponTimersState[name];
+            const minEquipIndex = weapInfo[lastMinIndex] === null ? weapInfo[currRespawnTimes].reduce((iMin, num, i, array) => num < array[iMin] ? i : iMin, -1) : weapInfo[lastMinIndex];
+            if (weapInfo[currRespawnTimes][minEquipIndex] < equipTime) {
+                weapInfo[currRespawnTimes][minEquipIndex] = equipTime + weapInfo[respawnDuration];
+                weapInfo['lastMinIndex'] = null;
+            } else {
+                weapInfo['lastMinIndex'] = minEquipIndex;
+            }
+        }
+    }
+});
+
 dew.on("scoreboard", function(e){
     scoreboardData = e.data;
-    mapName = e.data.mapName
+    mapName = e.data.mapName;
+    if (lastRoundNumber === null || e.data.currentRound > lastRoundNumber) {
+        timePassed = 0;
+        lastRoundNumber = e.data.currentRound;
+        weaponTimersState.forEach((state) => {
+            state.currRespawnTimes = Array(state.currRespawnTimes.length).fill(0);
+            state.lastMinIndex = null;
+        });
+    }
     if(e.data.numberOfRounds){
         multiRound = e.data.numberOfRounds == 1 ? false : true;
         lastRound = e.data.numberOfRounds == e.data.currentRound + 1 ? true : false;
@@ -643,6 +711,24 @@ function buildScoreboard(lobby, teamGame, scoreArray, gameType, playersInfo,expa
                 }
             });
         });
+
+        // https://jsbin.com/kenojadeqa/1/edit?html,css,output
+        if (!$.isEmptyObject(weaponTimersState) && expandedScoreboard === 1) {
+            const timerKeys = Object.keys(weaponTimersState);
+            const maxCount = weaponTimersState[i].currRespawnTimes.length > 3 ? 3 : weaponTimersState[i].currRespawnTimes.length;
+            $("#weapon-timers").html(
+                `${timerKeys.map((key, i) =>
+                    `<div class="weapon">
+                        <img src='${weaponsPath + weaponAliases[timerKeys[i]]}.png' class="weapon-image weapon-image-${timerKeys[i]}"></img>
+                        <div class="timers">
+                            ${weaponTimersState[i].currRespawnTimes.map(spawnTime => 
+                                spawnTime-timePassed <= 0 ? (endOfRoundTime === null || spawnTime > endOfRoundTime ? '' : `<div class="timer-text">Ready</div>`) : `<div class="timer-text">${spawnTime-timePassed}</div>`
+                            )}
+                        </div>
+                    </div>`
+                )}`
+            );
+        }
     }
 }
 

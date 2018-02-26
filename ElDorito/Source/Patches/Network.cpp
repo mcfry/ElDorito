@@ -201,6 +201,8 @@ namespace Patches::Network
 					writer.String(Modules::ModuleServer::Instance().VarServerAssassinationEnabled->ValueString.c_str());
 					writer.Key("votingEnabled");
 					writer.Bool(Modules::ModuleServer::Instance().VarServerVotingEnabled->ValueInt == 1 || Modules::ModuleServer::Instance().VarVetoSystemEnabled->ValueInt == 1);
+					writer.Key("weaponTimersEnabled");
+					writer.Bool(Modules::ModuleServer::Instance().VarServerWeaponTimersEnabled->ValueInt == 1);
 
 					auto session = Blam::Network::GetActiveSession();
 					if (session && session->IsEstablished()) {

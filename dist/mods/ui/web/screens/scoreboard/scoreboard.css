@@ -111,6 +111,34 @@ html {
     position: absolute;
 }
 
+#weapon-timers {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  justify-content: left;
+  overflow: hidden;
+}
+
+.weapon {
+  width: 145px; 
+}
+
+.timers {
+  margin-top: -10px;
+  display: flex;
+  flex-direction: row;
+  width: 90%;
+  justify-content: left;
+  overflow: hidden;
+}
+
+.timer-text {
+  font-family: "Conduit ITC", sans-serif;
+  font-size: 15px;
+  color: #2896ff;
+  padding: 0px 4px 0px 4px;
+}
+
 #closeButton{
     position: absolute;
     background-color: rgba(255, 255, 255, 0.25);

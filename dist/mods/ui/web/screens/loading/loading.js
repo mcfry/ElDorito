@@ -45,6 +45,11 @@ function loadMap(mapName) {
     dew.getMapVariantInfo().then(function (info) {
         $("#title").text(info.name);
         $("#desc").text(info.description);
+        if (info.weapons.length > 0) {
+            dew.notify('weaponsPlaced', info.weapons);
+        } else {
+            dew.notify('weaponsPlaced', {});
+        }
     });
     dew.getGameVariantInfo().then(function (info) {
         $("#gametypeicon").attr("src", "dew://assets/gametypes/" + gameModes[info.mode] + ".png");
@@ -60,10 +65,12 @@ function loadMap(mapName) {
             $("#gamescore").text("Unlimited");  
         }
         if(info.timeLimit > 0){
-            $("#timelimit").text(info.timeLimit+":00"); 
+            $("#timelimit").text(info.timeLimit+":00");
+            dew.notify('endRoundTime', info.timeLimit);
         } else {
-            $("#timelimit").text("Unlimited");  
-        }                
+            $("#timelimit").text("Unlimited");
+            dew.notify('endRoundTime', null);
+        }               
     });
     dew.command("Server.NameClient", { internal: true }).then(function (name) {
         $(".serverName").text(name);

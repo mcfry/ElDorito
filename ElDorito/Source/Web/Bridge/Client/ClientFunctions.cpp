@@ -135,7 +135,7 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 			*p_Result = "Not available: A game session is not active";
 			return QueryError_NotAvailable;
 		}
-		auto mapVariant = reinterpret_cast<uint8_t*>(session->Parameters.MapVariant.Get());
+		auto mapVariant = session->Parameters.MapVariant.Get();
 		if (!mapVariant)
 		{
 			*p_Result = "Not available: Map variant data is not available";
@@ -143,10 +143,10 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		}
 
 		// Get values out of it
-		auto name = Utils::String::ThinString(reinterpret_cast<const wchar_t*>(mapVariant + 0x8));
-		auto description = reinterpret_cast<const char*>(mapVariant + 0x28);
-		auto author = reinterpret_cast<const char*>(mapVariant + 0xA8);
-		auto mapId = *reinterpret_cast<uint32_t*>(mapVariant + 0x100);
+		auto name = Utils::String::ThinString(mapVariant->ContentHeader.Name);
+		auto description = mapVariant->ContentHeader.Description;
+		auto author = mapVariant->ContentHeader.Author;
+		auto mapId = mapVariant->MapId;
 
 		// Build a JSON response
 		rapidjson::StringBuffer buffer;
@@ -160,6 +160,67 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		writer.String(author);
 		writer.Key("mapId");
 		writer.Int64(mapId);
+		writer.Key("weapons");
+		writer.StartObject();
+		for (auto placement : mapVariant->Placements)
+		{
+			if (placement.PlacementFlags & 1) {
+				switch (placement.ObjectIndex)
+				{
+					case 0x14f9:
+						writer.Key("fuelRodRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("fuelRodCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x1509:
+						writer.Key("beamRifleRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("beamRifleCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x150c:
+						writer.Key("gravityHammerRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("gravityHammerCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x159e:
+						writer.Key("energySwordRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("energySwordCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x15b1:
+						writer.Key("sniperRifleRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("sniperRifleCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x15b2:
+						writer.Key("spartanLaserRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("spartanLaserCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x15b3:
+						writer.Key("rocketLauncherRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("rocketLauncherCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					case 0x1a45:
+						writer.Key("shotgunRespawn");
+						writer.Int(placement.Properties.RespawnTime);
+						writer.Key("shotgunCount");
+						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						break;
+					default:
+						break;
+				}
+			}
+		}
+		writer.EndObject();
 		writer.EndObject();
 		*p_Result = buffer.GetString();
 		return QueryError_Ok;
