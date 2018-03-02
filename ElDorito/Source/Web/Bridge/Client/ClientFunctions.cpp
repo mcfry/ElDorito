@@ -6,6 +6,7 @@
 #include "../../Ui/WebScoreboard.hpp"
 #include "../../../CommandMap.hpp"
 #include "../../../Blam/BlamNetwork.hpp"
+#include "../../../Blam/Tags/Game/GameEngineSettings.hpp"
 #include "../../../Discord/DiscordRPC.h"
 #include "../../../Patches/Network.hpp"
 #include "../../../Patches/Input.hpp"
@@ -278,6 +279,10 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 			return QueryError_NotAvailable;
 		}
 
+		typedef Blam::Tags::Game::GameEngineSettingsDefinition *(*GetWezrTagPtr)();
+		auto GetWezrTag = reinterpret_cast<GetWezrTagPtr>(0x719290);
+		auto *wezr = GetWezrTag();
+
 		// Get values out of it
 		auto mode = gameVariant->GameType;
 		auto name = Utils::String::ThinString(gameVariant->Name);
@@ -296,10 +301,20 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		switch (mode)
 		{
 			case Blam::GameType::CTF:
-				if (gameVariant->GameMode == 1) {
-					symmetryType = 2;
-				} else {
-					symmetryType = 1;
+				if (wezr)
+				{
+					auto &variants = wezr->CTFVariants;
+					for (auto i = 0; i < variants.Count; i++)
+					{
+						if (variants[i].Name[0] && strcmp(variants[i].Name, name.c_str()) == 0)
+						{
+							if (variants[i].GameMode == Blam::Tags::Game::CTFVariant::GameMode::Single) { // single
+								symmetryType = 2;
+							} else {
+								symmetryType = 1;
+							}
+						}
+					}
 				}
 				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1DC); 
 				break;

@@ -139,10 +139,6 @@ html {
     padding: 0px 4px 0px 4px;
 }
 
-.timer-text-gray {
-    color: #606060;
-}
-
 #closeButton{
     position: absolute;
     background-color: rgba(255, 255, 255, 0.25);

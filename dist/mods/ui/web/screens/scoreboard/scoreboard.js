@@ -30,7 +30,6 @@ let lastRoundNumber = null;
 let variantSymmetry = -1;
 let variantEngineFlag = null;
 let isVariantLoaded = false;
-let isTeamGame = false;
 
 var teamArray = [
     {name: 'red', color: '#620B0B'},
@@ -379,40 +378,40 @@ dew.on('mapWeaponsSpawned', function(e) {
                     if (isEnabled === 1) {
                         const checklist = ['fuelRod', 'beamRifle', 'gravityHammer', 'energySword', 'sniperRifle', 'spartanLaser', 'rocketLauncher', 'shotgun'];
                         for(i=0; i<checklist.length; i++) {
-                            const powerWeapon = checklist[i];
-                        
+                            
                             let count = 1;
+                            const powerWeapon = checklist[i];
                             let powerWeaponKey = powerWeapon + count.toString();
 
                             while (powerWeaponKey in json) {
 
                                 const weapInfo = json[powerWeaponKey];
                                 const weapPos = weapInfo['position'];
+                                const w_i = weapPos['i'], w_j = weapPos['j'], w_k = weapPos['k'];
 
-                                if (compareEngineFlags(weapInfo['engineFlags']) && (weapInfo['weaponSymmetry'] == 0 || variantSymmetry == weapInfo['weaponSymmetry'])) {
+                                if (compareEngineFlags(weapInfo['engineFlags']) && (weapInfo['weaponSymmetry'] === 0 || variantSymmetry === weapInfo['weaponSymmetry'])) {
                                     weaponTimersState[powerWeapon] = {
                                         powerWeaponKey: {
                                             respawnDuration: weapInfo['respawn'],
                                             currRespawnTime: weapInfo['placedAtStart'] ? 0 : weapInfo['respawn'],
-                                            lastMinIndex: null,
                                             placedAtStart: weapInfo['placedAtStart'],
                                             spareClips: weapInfo['spareClips'],
                                             teamVisibleFor: null,
                                             isTimerVisibleLocally: false,
                                             position: {
-                                                i: weapPos['i'],
-                                                j: weapPos['j'],
-                                                k: weapPos['k']
+                                                i: w_i,
+                                                j: w_j,
+                                                k: w_k
                                             },
                                             // Small optimizations
                                             cache: {
                                                 // dist = sqrt((i_1-i_2)^2 + (j_1-j_2)^2 + (k_1-k_2)^2)
-                                                distanceLeftClose: (closeUpdateDistance**2)-(i*i)-(j*j)-(k*k),
-                                                distanceLeftVeryClose: (veryCloseUpdateDistance**2)-(i*i)-(j*j)-(k*k),
+                                                distanceLeftClose: (closeUpdateDistance**2)-(w_i*w_i)-(w_j*w_j)-(w_k*w_k),
+                                                distanceLeftVeryClose: (veryCloseUpdateDistance**2)-(w_i*w_i)-(w_j*w_j)-(w_k*w_k),
                                                 badVars: {
-                                                    i: closeUpdateDistance+i,
-                                                    j: closeUpdateDistance+j,
-                                                    k: closeUpdateDistance+k
+                                                    i: closeUpdateDistance+w_i,
+                                                    j: closeUpdateDistance+w_j,
+                                                    k: closeUpdateDistance+w_k
                                                 }
                                             }
                                         }
@@ -435,11 +434,12 @@ dew.on('mapWeaponsSpawned', function(e) {
 
 dew.on("scoreboard", function(e){
     scoreboardData = e.data;
-    mapName = e.data.mapName;
-    isTeamGame = scoreboardData['hasTeams'];
+    mapName = e.data.mapName; // not sent in?
+    timePassed = e.data.timePassed;
+    let isTeamGame = scoreboardData['hasTeams'];
 
     if (lastRoundNumber === null || e.data.currentRound > lastRoundNumber) {
-        timePassed = 0;
+        timePassed = 0; // check game ticks behavior, probably need to save last and -
         lastRoundNumber = e.data.currentRound;
         weaponTimersState.forEach((weaponStates) => {
             weaponStates.forEach((state) => {
@@ -447,7 +447,6 @@ dew.on("scoreboard", function(e){
                 state.currRespawnTime = state.placedAtStart ? 0 : state.respawnDuration;
                 state.teamVisibleFor = null;
                 state.isTimerVisibleLocally = false;
-                state.lastMinIndex = null;
             });
         });
     }
@@ -468,13 +467,13 @@ dew.on("scoreboard", function(e){
 
                     while (weaponKey in weaponStates) {
                         const weaponTimer = weaponTimersState[weaponKey];
-                        const isTimerVisible = weaponTimer.isTimerVisibleLocally || (isTeamGame && player['team'] == weaponTimer.teamVisibleFor);
+                        const isTimerVisible = weaponTimer.isTimerVisibleLocally || (isTeamGame && player['team'] === weaponTimer.teamVisibleFor);
 
                         if (!isTimerVisible || (isTimerVisible && timePassed > weaponTimer.currRespawnTime)) {
                             // Player is more likely to be far away from one or more, so dont always check
                             const badVars = weaponTimer.cache.badVars;
 
-                            if (p_i < badVars.i && p_j < badVars.j && p_k < badVars.k) {
+                            if (p_i > badVars.i && p_j > badVars.j && p_k > badVars.k) {
                                 const w_i = weaponTimer['position']['i'], w_j = weaponTimer['position']['j'], w_k = weaponTimer['position']['k'];
                                 const distanceRight = (p_i*p_i)+(p_j*p_j)+(p_k*p_k)-2*(p_i*w_i + p_j*w_j + p_k*w_k);
 
@@ -488,7 +487,7 @@ dew.on("scoreboard", function(e){
                                     }
                                     if (isTeamGame) weaponTimer.teamVisibleFor = player['team'];
                                     weaponTimer.currRespawnTime = timePassed + weaponTimer.respawnDuration;
-                                } else if (weaponTimer.cache.distanceLeftClose > distanceRight && weaponTimer.isTimerVisibleLocally == false) {
+                                } else if (weaponTimer.cache.distanceLeftClose > distanceRight && !weaponTimer.isTimerVisibleLocally) {
                                     weaponTimer.isTimerVisibleLocally = true;
                                 }
                             }
@@ -612,7 +611,7 @@ dew.on("show", function(e){
             }
         });
         dew.command('Server.ListPlayersJSON').then(function(res){
-            lobbyJSON = JSON.parse(res);
+            lobbyJSON = JSON.parse(res); // can remove?
         });
     }else{
         $('#closeButton').hide();
@@ -849,22 +848,23 @@ function buildScoreboard(lobby, teamGame, scoreArray, gameType, playersInfo,expa
                         <img src='${weaponsPath + weaponAliases[name]}.png' class="weapon-image weapon-image-${name}"></img>
                         <div class="timers">
                             ${Object.keys(weaponTimersState[name]).map((timerName) => {
-                                const isTimerVisible = weaponTimer.isTimerVisibleLocally || (isTeamGame && player['team'] == weaponTimer.teamVisibleFor);
+                                const weaponTimer = weaponTimersState[name][timerName];
+                                const isTimerVisible = weaponTimer.isTimerVisibleLocally || (teamGame && player['team'] === weaponTimer.teamVisibleFor);
 
-                                if (!isTimerVisible || (endOfRoundTime !== null && weaponTimersState[name][timerName].currSpawnTime > endOfRoundTime)) {
-                                    return '<div class="timer-text timer-text-gray">--:--</div>';
-                                } else { 
-                                    if (weaponTimersState[name][timerName].currSpawnTime-timePassed <= 0) {
+                                if (!isTimerVisible || (endOfRoundTime !== null && weaponTimer.currSpawnTime > endOfRoundTime)) {
+                                    return `<div class="timer-text style="color: ${teamGame ? teamArray[weaponTimer.teamVisibleFor].color : '#606060'}">--:--</div>`;
+                                } else {
+                                    let spawnTime = weaponTimer.currSpawnTime-timePassed;
+                                    if (spawnTime <= 0) {
                                         return `<div class="timer-text">Ready</div>`;
-                                    } else { 
-                                        return `<div class="timer-text">${weaponTimersState[name][timerName].currSpawnTime-timePassed}</div>`;
+                                    } else {
+                                        return `<div class="timer-text">${spawnTime/60}:${spawnTime%60}</div>`;
                                     }
                                 }
                             })}
                         </div>
                     </div>`
-                    }
-                )}`
+                })}`
             );
         }
     }

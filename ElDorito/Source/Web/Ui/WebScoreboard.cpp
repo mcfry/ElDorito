@@ -259,13 +259,14 @@ namespace Web::Ui::WebScoreboard
 		auto timePassed = Blam::Time::TicksToSeconds(Blam::Time::GetGameTicks());
 		uint32_t playerStatusBase = 0x2161808;
 		auto playersList = Blam::Players::GetPlayers();
-		auto localPlayerIndex = Blam::Players::GetLocalPlayer(0);
+		//auto localPlayerHandle = Blam::Players::GetLocalPlayer(0);
 
 		writer.Key("timePassed");
 		writer.Int(static_cast<int>(timePassed));
 		writer.Key("players");
 		writer.StartArray();
 		int playerIdx = session->MembershipInfo.FindFirstPlayer();
+		int localPlayerIdx = session->MembershipInfo.LocalPeerIndex;
 		bool teamObjective[10] = { 0 };
 		while (playerIdx != -1)
 		{
@@ -279,7 +280,7 @@ namespace Web::Ui::WebScoreboard
 			writer.Key("serviceTag");
 			writer.String(Utils::String::ThinString(player.Properties.ServiceTag).c_str());
 			writer.Key("isLocalPlayer");
-			writer.Bool(playerIdx == localPlayerIndex);
+			writer.Bool(playerIdx == localPlayerIdx);
 			writer.Key("team");
 			writer.Int(player.Properties.TeamIndex);
 			std::stringstream color;
