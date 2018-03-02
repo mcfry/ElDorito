@@ -62,18 +62,11 @@ namespace Web::Ui::WebScoreboard
 		for (auto &names_tag_names : power_weapons_names_tag_names) {
 			auto weapon_name = names_tag_names.first;
 			auto tag_name = names_tag_names.second;
-			//try {
+
 			uint16_t tagindex = Blam::Tags::TagInstance::Find('weap', tag_name.c_str()).Index;
 			if (tagindex != 0xFFFF) {
 				power_weapons_index_names.emplace(tagindex, weapon_name);
 			}
-			// }
-			// catch (const std::exception&) {
-			// 	std::stringstream ss;
-			// 	ss << "Unable to add " << tag_name.c_str() << ", " << weapon_name.c_str() << " to map." << std::endl;
-			// 	ss << "Please check the names_tag_names is correct." << std::endl;
-			// 	Console::WriteLine(ss.str());
-			// }
 		}
 	}
 
@@ -191,72 +184,6 @@ namespace Web::Ui::WebScoreboard
 					acceptsInput = true;
 					Web::Ui::WebScoreboard::Hide();
 				}
-
-				// TODO: Move to getScoreboard
-				// TODO: Check ammo of gun >= pickup, check team of player that equipped and only update
-				// for team members, or if a player walks within some range of pickup placement
-				if (Modules::ModuleServer::Instance().VarServerWeaponTimersEnabled->ValueInt == 1)
-				{
-					auto timePassed = Blam::Time::TicksToSeconds(Blam::Time::GetGameTicks());
-					rapidjson::StringBuffer buffer;
-					rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-
-					writer.StartObject();
-					writer.Key("timePassed");
-					writer.Int(static_cast<int>(timePassed));
-					writer.Key("weaponsEquipped");
-					writer.StartArray();
-					int i = 1;
-					while(playerIndex != Blam::DatumHandle::Null) {
-						auto playerData = Blam::Objects::GetObjects()[playerDatum->SlaveUnit].Data;
-						auto playerObject = Pointer(playerData);
-						if (playerObject)
-						{
-							//auto position = playerData->Position;
-							auto equippedWeaponIndex = playerObject(0x2CA).Read<uint8_t>();
-							if (equippedWeaponIndex != -1)
-							{
-								uint16_t equippedIndex = 0xFFFF;
-
-								auto equippedWeaponObjectIndex = playerObject(0x2D0 + 4 * equippedWeaponIndex).Read<uint32_t>();
-								auto equippedWeaponObjectPtr = Pointer(Blam::Objects::GetObjects()[equippedWeaponObjectIndex].Data);
-								if (equippedWeaponObjectPtr)
-									equippedIndex = Pointer(equippedWeaponObjectPtr).Read<uint32_t>();
-
-								// TODO: Checking if time is > max found before writing is better if a few are placed on map
-								if (equippedIndex != 0xFFFF && power_weapons_index_names.count(equippedIndex) > 0)
-								{
-									auto weap_name = power_weapons_index_names[equippedIndex].c_str();
-									if (weap_name == "csr") {
-										writer.String("beamRifle");
-									} else if (weap_name == "fc") {
-										writer.String("fuelRod");
-									} else if (weap_name == "gh") {
-										writer.String("gravityHammer");
-									} else if (weap_name == "rl") {
-										writer.String("rocketLauncher");
-									} else if (weap_name == "sg") {
-										writer.String("shotgun");
-									} else if (weap_name == "sl") {
-										writer.String("spartanLaser");
-									} else if (weap_name == "sr") {
-										writer.String("sniperRifle");
-									} else if (weap_name == "eb") {
-										writer.String("energyBlade");
-									}
-								}
-							}
-						}
-						playerIndex = Blam::Players::GetLocalPlayer(i);
-						if (!(playerDatum = playersList.Get(playerIndex)))
-							break;
-						i++;
-					}
-					writer.EndArray();
-					writer.EndObject();
-
-					Web::Ui::ScreenLayer::Notify("weaponsTimer", buffer.GetString(), true);
-				}
 			}
 			else
 			{
@@ -304,7 +231,6 @@ namespace Web::Ui::WebScoreboard
 
 		writer.Key("currentRound");
 		writer.Int(get_current_round());
-
 		
 		writer.Key("totalScores");
 		writer.StartArray();
@@ -322,18 +248,21 @@ namespace Web::Ui::WebScoreboard
 		}
 		writer.EndArray();
 		
-		
 		int32_t variantType = Pointer(0x023DAF18).Read<int32_t>();
-
 		if (variantType >= 0 && variantType < Blam::GameTypeCount)
 		{
 			writer.Key("gameType");
 			writer.String(Blam::GameTypeNames[variantType].c_str());
 		}
 
-		auto& playersGlobal = ElDorito::GetMainTls(0x40)[0];
+		//auto& playersGlobal = ElDorito::GetMainTls(0x40)[0];
+		auto timePassed = Blam::Time::TicksToSeconds(Blam::Time::GetGameTicks());
 		uint32_t playerStatusBase = 0x2161808;
+		auto playersList = Blam::Players::GetPlayers();
+		auto localPlayerIndex = Blam::Players::GetLocalPlayer(0);
 
+		writer.Key("timePassed");
+		writer.Int(static_cast<int>(timePassed));
 		writer.Key("players");
 		writer.StartArray();
 		int playerIdx = session->MembershipInfo.FindFirstPlayer();
@@ -349,6 +278,8 @@ namespace Web::Ui::WebScoreboard
 			writer.String(Utils::String::ThinString(player.Properties.DisplayName).c_str());
 			writer.Key("serviceTag");
 			writer.String(Utils::String::ThinString(player.Properties.ServiceTag).c_str());
+			writer.Key("isLocalPlayer");
+			writer.Bool(playerIdx == localPlayerIndex);
 			writer.Key("team");
 			writer.Int(player.Properties.TeamIndex);
 			std::stringstream color;
@@ -385,16 +316,19 @@ namespace Web::Ui::WebScoreboard
 			writer.Int(scoreboard->PlayerScores[playerIdx].HighestSpree);
 
 			bool hasObjective = false;
-			const auto& playerDatum = Blam::Players::GetPlayers()[playerIdx];
-			if (playerDatum.GetSalt() && playerDatum.SlaveUnit != Blam::DatumHandle::Null)
+			const auto playerDatum = playersList.Get(playerIdx);
+			if (playerDatum->GetSalt() && playerDatum->SlaveUnit != Blam::DatumHandle::Null)
 			{
-				auto unitObjectPtr = Pointer(Blam::Objects::Get(playerDatum.SlaveUnit));
-				if (unitObjectPtr)
+				auto playerData = Blam::Objects::Get(playerDatum->SlaveUnit);
+				auto playerObjectPointer = Pointer(playerData);
+				if (playerObjectPointer)
 				{
-					auto rightWeaponIndex = unitObjectPtr(0x2Ca).Read<uint8_t>();
+					auto rightWeaponIndex = playerObjectPointer(0x2Ca).Read<uint8_t>();
 					if (rightWeaponIndex != 0xFF)
 					{
-						auto rightWeaponObject = Blam::Objects::Get(unitObjectPtr(0x2D0 + 4 * rightWeaponIndex).Read<uint32_t>());
+						uint16_t equippedIndex = 0xFFFF;
+						auto rightWeaponObject = Blam::Objects::Get(playerObjectPointer(0x2D0 + 4 * rightWeaponIndex).Read<uint32_t>());
+						auto rightWeaponObjectPtr = Pointer(rightWeaponObject);
 						if (rightWeaponObject)
 						{
 							auto weap = Blam::Tags::TagInstance(rightWeaponObject->TagIndex).GetDefinition<Blam::Tags::Items::Weapon>();
@@ -403,7 +337,56 @@ namespace Web::Ui::WebScoreboard
 								teamObjective[player.Properties.TeamIndex] = true;
 								if(session->MembershipInfo.GetPeerTeam(session->MembershipInfo.LocalPeerIndex) != player.Properties.TeamIndex)
 									hasObjective = false;
-							}		
+							}
+
+							// TODO: Check ammo >= default pickup, or charge 100%
+							if (Modules::ModuleServer::Instance().VarServerWeaponTimersEnabled->ValueInt == 1)
+							{
+								auto position = playerData->Position;
+								writer.Key("playerPosition");
+								writer.StartObject();
+								writer.Key("i");
+								writer.Int(static_cast<int>(position.I));
+								writer.Key("j");
+								writer.Int(static_cast<int>(position.J));
+								writer.Key("k");
+								writer.Int(static_cast<int>(position.K));
+								writer.EndObject();
+
+								equippedIndex = Pointer(rightWeaponObjectPtr).Read<uint32_t>();
+
+								if (equippedIndex != 0xFFFF && power_weapons_index_names.count(equippedIndex) > 0)
+								{
+									std::string name = "";
+									auto weap_name = power_weapons_index_names[equippedIndex].c_str();
+									if (weap_name == "csr") {
+										name = "beamRifle";
+									} else if (weap_name == "fc") {
+										name = "fuelRod";
+									} else if (weap_name == "gh") {
+										name = "gravityHammer";
+									} else if (weap_name == "rl") {
+										name = "rocketLauncher";
+									} else if (weap_name == "sg") {
+										name = "shotgun";
+									} else if (weap_name == "sl") {
+										name = "spartanLaser";
+									} else if (weap_name == "sr") {
+										name = "sniperRifle";
+									} else if (weap_name == "eb") {
+										name = "energyBlade";
+									}
+									if (name != "") {
+										writer.Key("equippedName");
+										writer.String(name.c_str());
+										// Don't know how to get current ammo/recharge..
+										writer.Key("rounds");
+										writer.Int(0);
+										writer.Key("charge");
+										writer.Int(0);
+									}
+								}
+							}
 						}
 					}
 				}

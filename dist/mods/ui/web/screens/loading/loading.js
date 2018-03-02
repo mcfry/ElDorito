@@ -46,9 +46,9 @@ function loadMap(mapName) {
         $("#title").text(info.name);
         $("#desc").text(info.description);
         if (info.weapons.length > 0) {
-            dew.notify('weaponsPlaced', info.weapons);
+            dew.notify('mapWeaponsSpawned', info.weaponsSpawned);
         } else {
-            dew.notify('weaponsPlaced', {});
+            dew.notify('mapWeaponsSpawned', {});
         }
     });
     dew.getGameVariantInfo().then(function (info) {
@@ -64,13 +64,16 @@ function loadMap(mapName) {
         } else {
             $("#gamescore").text("Unlimited");  
         }
+        let gameVariantWeaponInfo = {};
+        gameVariantWeaponInfo['gameTypeFlag'] = info.mode;
+        gameVariantWeaponInfo['symmetryType'] = info.symmetryType;
         if(info.timeLimit > 0){
             $("#timelimit").text(info.timeLimit+":00");
-            dew.notify('endRoundTime', info.timeLimit);
+            gameVariantWeaponInfo['timeLimit'] = info.timeLimit;
         } else {
             $("#timelimit").text("Unlimited");
-            dew.notify('endRoundTime', null);
-        }               
+        }
+        dew.notify('variantWeaponsSpawned', gameVariantWeaponInfo);           
     });
     dew.command("Server.NameClient", { internal: true }).then(function (name) {
         $(".serverName").text(name);

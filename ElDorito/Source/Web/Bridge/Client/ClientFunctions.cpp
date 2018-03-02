@@ -160,63 +160,84 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		writer.String(author);
 		writer.Key("mapId");
 		writer.Int64(mapId);
-		writer.Key("weapons");
+		writer.Key("weaponsSpawned");
 		writer.StartObject();
+		int i, j, k, l, m, n, o, p, current;
+		i = j = k = l = m = n = o = p = current = 0;
 		for (auto placement : mapVariant->Placements)
 		{
-			if (placement.PlacementFlags & 1) {
+			if (placement.PlacementFlags & 1) 
+			{
+				auto name = "";
 				switch (placement.ObjectIndex)
 				{
 					case 0x14f9:
-						writer.Key("fuelRodRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("fuelRodCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "fuelRod";
+						current = ++i;
 						break;
 					case 0x1509:
-						writer.Key("beamRifleRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("beamRifleCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "beamRifle";
+						current = ++j;
 						break;
 					case 0x150c:
-						writer.Key("gravityHammerRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("gravityHammerCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "gravityHammer";
+						current = ++k;
 						break;
 					case 0x159e:
-						writer.Key("energySwordRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("energySwordCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "energySword";
+						current = ++l;
 						break;
 					case 0x15b1:
-						writer.Key("sniperRifleRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("sniperRifleCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "sniperRifle";
+						current = ++m;
 						break;
 					case 0x15b2:
-						writer.Key("spartanLaserRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("spartanLaserCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "spartanLaser";
+						current = ++n;
 						break;
 					case 0x15b3:
-						writer.Key("rocketLauncherRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("rocketLauncherCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "rocketLauncher";
+						current = ++o;
 						break;
 					case 0x1a45:
-						writer.Key("shotgunRespawn");
-						writer.Int(placement.Properties.RespawnTime);
-						writer.Key("shotgunCount");
-						writer.Int(mapVariant->Budget[placement.BudgetIndex].CountOnMap);
+						name = "shotgun";
+						current = ++p;
 						break;
 					default:
 						break;
+				}
+
+				if (name != "")
+				{
+					writer.Key(name + ('0' + current));
+					writer.StartObject();
+					writer.Key("respawn");
+					writer.Int(placement.Properties.RespawnTime);
+					writer.Key("placedAtStart");
+					writer.Bool(placement.Properties.ObjectFlags & 2);
+					writer.Key("spareClips");
+					writer.Int(placement.Properties.SharedStorage);
+					// Both 0, Sym 1, Assym 2
+					writer.Key("weaponSymmetry");
+					if (placement.Properties.ObjectFlags & 0xC) {
+						writer.Int(0);
+					} else if (placement.Properties.ObjectFlags & 4) {
+						writer.Int(1);
+					} else {
+						writer.Int(2);
+					}
+					writer.Key("engineFlags");
+					writer.Int(placement.Properties.EngineFlags);
+					writer.Key("position");
+					writer.StartObject();
+					writer.Key("i");
+					writer.Int(static_cast<int>(placement.Position.I));
+					writer.Key("j");
+					writer.Int(static_cast<int>(placement.Position.J));
+					writer.Key("k");
+					writer.Int(static_cast<int>(placement.Position.K));
+					writer.EndObject();
+					writer.EndObject();
 				}
 			}
 		}
@@ -266,18 +287,49 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		auto timeLimit = gameVariant->RoundTimeLimit;
 		auto rounds = gameVariant->NumberOfRounds;
 
+		// min needed: 0 both, 1 sym, 2 asymm
+		auto symmetryType = -1;
+
 		// The score-to-win value location varies depending on gametype
 		auto scoreToWin = -1;
 		auto rawGameVariant = reinterpret_cast<uint8_t*>(gameVariant);
-		switch (gameVariant->GameType)
+		switch (mode)
 		{
-		case Blam::GameType::Slayer: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4); break;
-		case Blam::GameType::Oddball: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D8); break;
-		case Blam::GameType::KOTH: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D8); break;
-		case Blam::GameType::CTF: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1DC); break;
-		case Blam::GameType::Assault: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1DC); break;
-		case Blam::GameType::Juggernaut: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4); break;
-		case Blam::GameType::VIP: scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4); break;
+			case Blam::GameType::CTF:
+				if (gameVariant->GameMode == 1) {
+					symmetryType = 2;
+				} else {
+					symmetryType = 1;
+				}
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1DC); 
+				break;
+			case Blam::GameType::Slayer: 
+				symmetryType = 1;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4);
+				break;
+			case Blam::GameType::Oddball:
+				symmetryType = 1;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D8); 
+				break;
+			case Blam::GameType::KOTH:
+				symmetryType = 1;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D8); 
+				break;
+			case Blam::GameType::VIP:
+				symmetryType = 0;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4); 
+				break;
+			case Blam::GameType::Juggernaut:
+				symmetryType = 2;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1D4); 
+				break;
+			case Blam::GameType::Assault:
+				symmetryType = 0;
+				scoreToWin = *reinterpret_cast<int16_t*>(rawGameVariant + 0x1DC); 
+				break;
+			case Blam::GameType::Infection:
+				symmetryType = 2;
+				break;
 		}
 
 		// Build a JSON response
@@ -300,6 +352,8 @@ namespace Anvil::Client::Rendering::Bridge::ClientFunctions
 		writer.Int(rounds);
 		writer.Key("scoreToWin");
 		writer.Int(scoreToWin);
+		writer.Key("symmetryType");
+		writer.Int(symmetryType);
 		writer.EndObject();
 		*p_Result = buffer.GetString();
 		return QueryError_Ok;
